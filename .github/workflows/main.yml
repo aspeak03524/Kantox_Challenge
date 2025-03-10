@@ -1,0 +1,80 @@
+name: Deploy to EKS
+
+on:
+  push:
+    branches:
+      - main # Or your main branch
+  workflow_dispatch: # Allow manual triggering
+  schedule:
+    - cron: '0 * * * *' # Run hourly to check for Docker Hub updates
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Main API Docker image
+        run: docker build -t main-api-test . -f Dockerfile.main-api
+
+      - name: Run Main API Docker container
+        run: docker run -d -p 3000:3000 --name main-api-container main-api-test
+
+      - name: Build Auxiliary Docker image
+        run: docker build -t auxiliary-test . -f Dockerfile.auxiliary
+
+      - name: Run Auxiliary Docker container
+        run: docker run -d -p 4000:4000 --name auxiliary-container auxiliary-test
+
+      - name: Check Main API Port
+        run: |
+          sleep 5 # Give containers time to start
+          curl http://localhost:3000 || exit 1
+
+      - name: Check Auxiliary API Port
+        run: curl http://localhost:4000 || exit 1
+
+  deploy_to_eks:
+    needs: build_and_test
+    runs-on: self-hosted
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-south-2
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.28.0' # Or your EKS cluster version
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region eu-south-2
+
+      - name: Apply Kubernetes manifest
+        run: kubectl apply -f deployment.yaml
+
+      - name: Check Main API Deployment
+        run: kubectl rollout status deployment/main-api-deployment --timeout=120s
+
+      - name: Check Auxiliary Deployment
+        run: kubectl rollout status deployment/auxiliary-deployment --timeout=120s
+
+  dockerhub_update_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for Docker Hub updates
+        run: |
+          # Use docker hub api or other methods to check for updates.
+          # If updates are detected, trigger the deploy_to_eks job.
+          echo "Checking for Docker Hub updates..."
+          # Add logic to check for updates
+          # If update is detected.
+          # gh workflow run deploy.yaml --ref ${{ github.ref_name }} # trigger workflow

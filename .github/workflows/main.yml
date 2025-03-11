@@ -1,13 +1,11 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - Build, Test, and Deploy Specific Tags
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: # Allow manual triggering
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Images
+  build-and-test:
+    name: Build and Test Docker Images
     runs-on: ubuntu-latest
 
     steps:
@@ -18,48 +16,36 @@ jobs:
         run: |
           docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and Push App Image
+      - name: Build App Image
         id: build-app
         env:
           DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
-          IMAGE_TAG: app-${{ github.sha }}
+          IMAGE_TAG: my-api-dual-2 # Hardcoded tag
         run: |
           docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f app/Dockerfile app
           docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
 
-      - name: Build and Push Auxiliary Image
+      - name: Build Auxiliary Image
         id: build-auxiliary
         env:
           DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
-          IMAGE_TAG: auxiliary-${{ github.sha }}
+          IMAGE_TAG: my-aux-latest-2 # Hardcoded tag
         run: |
           docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f auxiliary/Dockerfile auxiliary
           docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
 
-      - name: Create latest tag for app
-        id: docker-latest-app
-        env:
-          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
-          IMAGE_TAG: app-${{ github.sha }}
+      - name: Run Tests (App)
         run: |
-          docker pull $DOCKERHUB_REPOSITORY:$IMAGE_TAG
-          docker tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG $DOCKERHUB_REPOSITORY:app-latest
-          docker push $DOCKERHUB_REPOSITORY:app-latest
+          docker run --rm aspeak03524/kantox-challenge:my-api-dual-2 /bin/sh -c "echo 'Running App tests...'; exit 0" # Replace with your actual test commands
 
-      - name: Create latest tag for auxiliary
-        id: docker-latest-auxiliary
-        env:
-          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
-          IMAGE_TAG: auxiliary-${{ github.sha }}
+      - name: Run Tests (Auxiliary)
         run: |
-          docker pull $DOCKERHUB_REPOSITORY:$IMAGE_TAG
-          docker tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG $DOCKERHUB_REPOSITORY:auxiliary-latest
-          docker push $DOCKERHUB_REPOSITORY:auxiliary-latest
+          docker run --rm aspeak03524/kantox-challenge:my-aux-latest-2 /bin/sh -c "echo 'Running Auxiliary tests...'; exit 0" # Replace with your actual test commands
 
   deploy-to-eks:
-    name: Deploy to EKS
+    name: Deploy to EKS with Specific Tags
     runs-on: self-hosted # Use your self-hosted runner
-    needs: build-and-push
+    needs: build-and-test
 
     steps:
       - name: Checkout Repository
@@ -72,11 +58,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-south-2
 
-      - name: Update Kubernetes Deployment
+      - name: Update Kubernetes Deployment with Specific Tags
         env:
           DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
-          APP_IMAGE_TAG: app-${{ github.sha }}
-          AUXILIARY_IMAGE_TAG: auxiliary-${{ github.sha }}
+          APP_IMAGE_TAG: my-api-dual-2
+          AUXILIARY_IMAGE_TAG: my-aux-latest-2
         run: |
           aws eks update-kubeconfig --name andrew-kantox-cluster --region eu-south-2
           # Replace the image tags within the kubernetes/deployment.yml file

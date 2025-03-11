@@ -38,17 +38,21 @@ jobs:
           # List all running containers to check their status
           docker ps --filter "status=running"
 
-      - name: Build App Image
-        run: |
-          docker build -t aspeak03524/kantox-challenge:my-api-dual-2 -f app/Dockerfile app
-          docker push aspeak03524/kantox-challenge:my-api-dual-2
-          working-directory: $GITHUB_WORKSPACE/Cloud_Engineer_Challenge
+      - name: Build and push App Image
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: aspeak03524/kantox-challenge:my-api-dual-2
 
-      - name: Build Auxiliary Image
-        run: |
-          docker build -t aspeak03524/kantox-challenge:my-aux-latest-2 -f auxiliary/Dockerfile auxiliary
-          docker push aspeak03524/kantox-challenge:my-aux-latest-2
-          working-directory: $GITHUB_WORKSPACE/Cloud_Engineer_Challenge
+      - name: Build and push Auxiliary Image
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./auxiliary
+          file: ./auxiliary/Dockerfile
+          push: true
+          tags: aspeak03524/kantox-challenge:my-aux-latest-2
 
   deployment:
     name: Stage2Deployment

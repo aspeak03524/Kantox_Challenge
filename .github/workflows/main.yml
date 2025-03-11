@@ -38,10 +38,15 @@ jobs:
           # List all running containers to check their status
           docker ps --filter "status=running"
 
-      - name: Tear down the containers
+      - name: Build App Image
         run: |
-         # Stop and remove all containers started by docker-compose
-         docker-compose down
+          docker build -t aspeak03524/kantox-challenge:my-api-dual-2 -f app/Dockerfile app
+          docker push aspeak03524/kantox-challenge:my-api-dual-2
+
+      - name: Build Auxiliary Image
+        run: |
+          docker build -t aspeak03524/kantox-challenge:my-aux-latest-2 -f auxiliary/Dockerfile auxiliary
+          docker push aspeak03524/kantox-challenge:my-aux-latest-2
 
   deployment:
     name: Stage2Deployment

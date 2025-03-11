@@ -39,16 +39,16 @@ jobs:
           docker ps --filter "status=running"
 
       - name: Build App Image
-  run: |
-    docker build -t aspeak03524/kantox-challenge:my-api-dual-2 -f app/Dockerfile app
-    docker push aspeak03524/kantox-challenge:my-api-dual-2
-  working-directory: Cloud_Engineer_Challenge # Add this line
+        run: |
+          docker build -t aspeak03524/kantox-challenge:my-api-dual-2 -f app/Dockerfile app
+          docker push aspeak03524/kantox-challenge:my-api-dual-2
+          working-directory: Cloud_Engineer_Challenge # Add this line
 
       - name: Build Auxiliary Image
-  run: |
-    docker build -t aspeak03524/kantox-challenge:my-aux-latest-2 -f auxiliary/Dockerfile auxiliary
-    docker push aspeak03524/kantox-challenge:my-aux-latest-2
-  working-directory: Cloud_Engineer_Challenge # Add this line
+        run: |
+          docker build -t aspeak03524/kantox-challenge:my-aux-latest-2 -f auxiliary/Dockerfile auxiliary
+          docker push aspeak03524/kantox-challenge:my-aux-latest-2
+          working-directory: Cloud_Engineer_Challenge # Add this line
 
   deployment:
     name: Stage2Deployment

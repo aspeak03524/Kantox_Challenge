@@ -79,11 +79,11 @@ jobs:
           AUXILIARY_IMAGE_TAG: auxiliary-${{ github.sha }}
         run: |
           aws eks update-kubeconfig --name andrew-kantox-cluster --region eu-south-2
-          # Replace the image tags within the deployment.yml file
-          sed -i "s|YOUR_APP_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${APP_IMAGE_TAG}|g" deployment.yml
-          sed -i "s|YOUR_AUXILIARY_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${AUXILIARY_IMAGE_TAG}|g" deployment.yml
-          # Apply the deployment.yml file
-          kubectl apply -f deployment.yml -n default
+          # Replace the image tags within the kubernetes/deployment.yml file
+          sed -i "s|YOUR_APP_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${APP_IMAGE_TAG}|g" kubernetes/deployment.yml
+          sed -i "s|YOUR_AUXILIARY_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${AUXILIARY_IMAGE_TAG}|g" kubernetes/deployment.yml
+          # Apply the deployment.yml file from the kubernetes folder
+          kubectl apply -f kubernetes/deployment.yml -n default
           # Update the config map
           kubectl create configmap service-version \
           --from-literal=APP_VERSION=${APP_IMAGE_TAG} \

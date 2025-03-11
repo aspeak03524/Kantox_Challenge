@@ -22,8 +22,8 @@ jobs:
           DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
           IMAGE_TAG: my-api-dual-2 # Hardcoded tag
         run: |
-          docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f app/Dockerfile app
-          docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
+          docker build -t aspeak03524/kantox-challenge:my-api-dual-2 -f app/Dockerfile app
+          docker push aspeak03524/kantox-challenge:my-api-dual-2
 
       - name: Build Auxiliary Image
         id: build-auxiliary
@@ -31,8 +31,8 @@ jobs:
           DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
           IMAGE_TAG: my-aux-latest-2 # Hardcoded tag
         run: |
-          docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f auxiliary/Dockerfile auxiliary
-          docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
+          docker build -t aspeak03524/kantox-challenge:my-aux-latest-2 -f auxiliary/Dockerfile background
+          docker push aspeak03524/kantox-challenge:my-aux-latest-2
 
       - name: Run Tests (App)
         run: |

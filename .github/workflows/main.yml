@@ -45,6 +45,7 @@ jobs:
           file: ./app/Dockerfile
           push: true
           tags: aspeak03524/kantox-challenge:my-api-dual-2
+          working-directory: Cloud_Engineer_Challenge
 
       - name: Build and push Auxiliary Image
         uses: docker/build-push-action@v6.15.0
@@ -53,6 +54,7 @@ jobs:
           file: ./auxiliary/Dockerfile
           push: true
           tags: aspeak03524/kantox-challenge:my-aux-latest-2
+          working-directory: Cloud_Engineer_Challenge
 
   deployment:
     name: Stage2Deployment

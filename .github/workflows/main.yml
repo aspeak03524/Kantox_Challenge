@@ -1,80 +1,91 @@
-name: Deploy to EKS
+name: CI/CD Pipeline
 
 on:
   push:
     branches:
-      - main # Or your main branch
-  workflow_dispatch: # Allow manual triggering
-  schedule:
-    - cron: '0 * * * *' # Run hourly to check for Docker Hub updates
+      - main
 
 jobs:
-  build_and_test:
+  build-and-push:
+    name: Build and Push Docker Images
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Build Main API Docker image
-        run: docker build -t main-api-test . -f Dockerfile.main-api
-
-      - name: Run Main API Docker container
-        run: docker run -d -p 3000:3000 --name main-api-container main-api-test
-
-      - name: Build Auxiliary Docker image
-        run: docker build -t auxiliary-test . -f Dockerfile.auxiliary
-
-      - name: Run Auxiliary Docker container
-        run: docker run -d -p 4000:4000 --name auxiliary-container auxiliary-test
-
-      - name: Check Main API Port
+      - name: Login to Docker Hub
         run: |
-          sleep 5 # Give containers time to start
-          curl http://localhost:3000 || exit 1
+          docker login -u ${{ secrets.DOCKERHUB_USERNAME }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Check Auxiliary API Port
-        run: curl http://localhost:4000 || exit 1
+      - name: Build and Push App Image
+        id: build-app
+        env:
+          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
+          IMAGE_TAG: app-${{ github.sha }}
+        run: |
+          docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f app/Dockerfile app
+          docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
 
-  deploy_to_eks:
-    needs: build_and_test
-    runs-on: self-hosted
+      - name: Build and Push Auxiliary Image
+        id: build-auxiliary
+        env:
+          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
+          IMAGE_TAG: auxiliary-${{ github.sha }}
+        run: |
+          docker build -t $DOCKERHUB_REPOSITORY:$IMAGE_TAG -f auxiliary/Dockerfile auxiliary
+          docker push $DOCKERHUB_REPOSITORY:$IMAGE_TAG
+
+      - name: Create latest tag for app
+        id: docker-latest-app
+        env:
+          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
+          IMAGE_TAG: app-${{ github.sha }}
+        run: |
+          docker pull $DOCKERHUB_REPOSITORY:$IMAGE_TAG
+          docker tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG $DOCKERHUB_REPOSITORY:app-latest
+          docker push $DOCKERHUB_REPOSITORY:app-latest
+
+      - name: Create latest tag for auxiliary
+        id: docker-latest-auxiliary
+        env:
+          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
+          IMAGE_TAG: auxiliary-${{ github.sha }}
+        run: |
+          docker pull $DOCKERHUB_REPOSITORY:$IMAGE_TAG
+          docker tag $DOCKERHUB_REPOSITORY:$IMAGE_TAG $DOCKERHUB_REPOSITORY:auxiliary-latest
+          docker push $DOCKERHUB_REPOSITORY:auxiliary-latest
+
+  deploy-to-eks:
+    name: Deploy to EKS
+    runs-on: self-hosted # Use your self-hosted runner
+    needs: build-and-push
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-south-2
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: 'v1.28.0' # Or your EKS cluster version
-
-      - name: Update kubeconfig
+      - name: Update Kubernetes Deployment
+        env:
+          DOCKERHUB_REPOSITORY: aspeak03524/kantox-challenge
+          APP_IMAGE_TAG: app-${{ github.sha }}
+          AUXILIARY_IMAGE_TAG: auxiliary-${{ github.sha }}
         run: |
-          aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region eu-south-2
-
-      - name: Apply Kubernetes manifest
-        run: kubectl apply -f deployment.yaml
-
-      - name: Check Main API Deployment
-        run: kubectl rollout status deployment/main-api-deployment --timeout=120s
-
-      - name: Check Auxiliary Deployment
-        run: kubectl rollout status deployment/auxiliary-deployment --timeout=120s
-
-  dockerhub_update_check:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check for Docker Hub updates
-        run: |
-          # Use docker hub api or other methods to check for updates.
-          # If updates are detected, trigger the deploy_to_eks job.
-          echo "Checking for Docker Hub updates..."
-          # Add logic to check for updates
-          # If update is detected.
-          # gh workflow run deploy.yaml --ref ${{ github.ref_name }} # trigger workflow
+          aws eks update-kubeconfig --name andrew-kantox-cluster --region eu-south-2
+          # Replace the image tags within the deployment.yml file
+          sed -i "s|YOUR_APP_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${APP_IMAGE_TAG}|g" deployment.yml
+          sed -i "s|YOUR_AUXILIARY_IMAGE_TAG|${DOCKERHUB_REPOSITORY}:${AUXILIARY_IMAGE_TAG}|g" deployment.yml
+          # Apply the deployment.yml file
+          kubectl apply -f deployment.yml -n default
+          # Update the config map
+          kubectl create configmap service-version \
+          --from-literal=APP_VERSION=${APP_IMAGE_TAG} \
+          --from-literal=AUXILIARY_VERSION=${AUXILIARY_IMAGE_TAG} \
+          -n default --dry-run=client -o yaml | kubectl apply -f -

@@ -2,11 +2,13 @@ name: CI/CD Pipeline
 
 on:
   workflow_dispatch:
-
+  repository_dispatch:
+    types: [docker_image_push]
 jobs:
   testing:
     name: Stage1Testing
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' #only run on manual triggers
 
     steps:
       - name: Checkout Code
@@ -56,10 +58,15 @@ jobs:
     name: Stage2Deployment
     needs: testing
     runs-on: self-hosted
+    if: github.event_name == 'workflow_dispatch' #only run on manual triggers
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+      - name: Debug Docker Hub Payload
+        run: |
+          echo "Docker Hub Payload:"
+          echo "${{ toJson(github.event.client_payload) }}"
 
       - name: Connect to Windows Runner
         run: |
@@ -72,9 +79,18 @@ jobs:
       - name: Update kubeconfig for EKS Cluster
         run: |
           aws eks --region eu-south-2 update-kubeconfig --name andrew-kantox-cluster
-      - name: Apply Kubernetes Manifest
+          
+      - name: Update Deployment with Latest Image
         run: |
-          kubectl apply -f ./deployment.yml
+          APP_IMAGE_TAG="${{ github.event.client_payload.push_data.tag }}"
+          AUXILIARY_IMAGE_TAG="${{ github.event.client_payload.push_data.tag }}"
+          sed -i "s|aspeak03524/kantox-challenge:my-api-dual:.*|aspeak03524/kantox-challenge:my-api-dual:${APP_IMAGE_TAG}|g" deployment.yml
+          sed -i "s|aspeak03524/kantox-challenge:my-aux-latest:.*|aspeak03524/kantox-challenge:my-aux-latest:${AUXILIARY_IMAGE_TAG}|g" deployment.yml
+          kubectl apply -f deployment.yml
+          kubectl create configmap service-version \
+          --from-literal=APP_VERSION=${APP_IMAGE_TAG} \
+          --from-literal=AUXILIARY_VERSION=${AUXILIARY_IMAGE_TAG} \
+          -n default --dry-run=client -o yaml | kubectl apply -f -
       - name: Get Pod Status
         id: get-pod-status
         run: |

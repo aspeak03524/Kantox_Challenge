@@ -28,12 +28,12 @@ def write_to_s3(bucket_name, object_key, content):
 @app.route('/aux_data', methods=['GET'])
 def aux_data():
     # Example: Read from auxiliary bucket
-    aux_s3_data = read_from_s3(AUX_BUCKET, 'aux-data.txt')  # Replace with your object key
+    aux_s3_data = read_from_s3(AUX_BUCKET, 'aux-data.txt') 
     if aux_s3_data:
         print(f"Data from auxiliary bucket: {aux_s3_data}")
 
     # Example: Write to main bucket
-    write_to_s3(MAIN_BUCKET, 'aux-service-data.txt', 'Data from auxiliary service') # Replace with your object key
+    write_to_s3(MAIN_BUCKET, 'aux-service-data.txt', 'Data from auxiliary service') 
 
     return jsonify({'message': 'Data from auxiliary service', 'aux_s3_data': aux_s3_data})
 

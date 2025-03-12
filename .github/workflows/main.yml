@@ -54,45 +54,53 @@ jobs:
           push: true
           tags: aspeak03524/kantox-challenge:my-aux-latest-2
 
-  deployment:
-    name: Stage2Deployment
-    needs: testing
-    runs-on: self-hosted
+  name: Kubernetes Deployment Update on Docker Hub Push
 
+on:
+  repository_dispatch:
+    types: [docker_image_push]
+
+jobs:
+  deploy:
+    runs-on: self-hosted # Or a Kubernetes-enabled runner
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Connect to Windows Runner
+      - name: Debug Docker Hub Payload
         run: |
-          echo "Using Windows runner for deployment."
+          echo "Docker Hub Payload:"
+          echo "${{ toJson(github.event.client_payload) }}"
 
-      - name: Configure AWS CLI with credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-south-2
+
+      - name: Update Deployment with Latest Image
         run: |
-          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws configure set default.region eu-south-2
+          aws eks update-kubeconfig --name andrew-kantox-cluster --region eu-south-2
 
-      - name: Update kubeconfig for EKS Cluster
+          # Extract image tag from Docker Hub payload
+          APP_IMAGE_TAG="${{ github.event.client_payload.push_data.tag }}"
+          AUXILIARY_IMAGE_TAG="${{ github.event.client_payload.push_data.tag }}"
+
+          # Update deployment YAML with new image tag
+          sed -i "s|aspeak03524/kantox-challenge:my-api-dual:.*|aspeak03524/kantox-challenge:my-api-dual:${APP_IMAGE_TAG}|g" kubernetes/deployment.yml
+          sed -i "s|aspeak03524/kantox-challenge:my-aux-latest:.*|aspeak03524/kantox-challenge:my-aux-latest:${AUXILIARY_IMAGE_TAG}|g" kubernetes/deployment.yml
+
+          # Apply updated deployment
+          kubectl apply -f kubernetes/deployment.yml -n default
+
+          # Update ConfigMap with image tags
+          kubectl create configmap service-version \
+          --from-literal=APP_VERSION=${APP_IMAGE_TAG} \
+          --from-literal=AUXILIARY_VERSION=${AUXILIARY_IMAGE_TAG} \
+          -n default --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Verify Deployment
         run: |
-          aws eks --region eu-south-2 update-kubeconfig --name andrew-kantox-cluster
-
-      - name: Apply Kubernetes Manifest
-        run: |
-          kubectl apply -f ./deployment.yml
-
-      - name: Get Pod Status
-        id: get-pod-status
-        run: |
-          echo "pods=$(kubectl get pods --all-namespaces -o jsonpath='{.items[*].status.phase}')" >> $GITHUB_OUTPUT
-
-      - name: Check Pod Status
-        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == false
-        run: |
-          echo "Some pods are not running. Pod Status: ${{ steps.get-pod-status.outputs.pods }}"
-          exit 1
-        continue-on-error: true
-
-      - name: All Pods Running
-        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == true
-        run: echo "All pods are running."
+          kubectl rollout status deployment/your-deployment-name -n default --timeout=60s
+        #replace your-deployment-name with the actual name of your deployment.

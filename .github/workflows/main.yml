@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+
+jobs:
+  testing:
+    name: Stage1Testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Install Docker Compose
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y docker-compose
+
+      - name: Run Docker Compose
+        run: |
+          docker-compose -f ./docker-compose.yml up -d
+        
+      - name: Install curl
+        run: sudo apt-get install -y curl
+
+      - name: Check if all containers are running
+        run: |
+          # List all running containers to check their status
+          docker ps --filter "status=running"
+
+      - name: Build and push App Image
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: aspeak03524/kantox-challenge:my-api-dual-2
+
+      - name: Build and push Auxiliary Image
+        uses: docker/build-push-action@v6.15.0
+        with:
+          context: ./auxiliary
+          file: ./auxiliary/Dockerfile
+          push: true
+          tags: aspeak03524/kantox-challenge:my-aux-latest-2
+
+  deployment:
+    name: Stage2Deployment
+    needs: testing
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Connect to Windows Runner
+        run: |
+          echo "Using Windows runner for deployment."
+
+      - name: Configure AWS CLI with credentials
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set default.region eu-south-2
+
+      - name: Update kubeconfig for EKS Cluster
+        run: |
+          aws eks --region eu-south-2 update-kubeconfig --name andrew-kantox-cluster
+
+      - name: Apply Kubernetes Manifest
+        run: |
+          kubectl apply -f ./deployment.yml
+
+      - name: Get Pod Status
+        id: get-pod-status
+        run: |
+          echo "pods=$(kubectl get pods --all-namespaces -o jsonpath='{.items[*].status.phase}')" >> $GITHUB_OUTPUT
+
+      - name: Check Pod Status
+        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == false
+        run: |
+          echo "Some pods are not running. Pod Status: ${{ steps.get-pod-status.outputs.pods }}"
+          exit 1
+        continue-on-error: true
+
+      - name: All Pods Running
+        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == true
+        run: echo "All pods are running."

@@ -1,6 +1,6 @@
 variable "aws_region" {
   description = "AWS region"
-  default     = "eu-south-2" # Change to your preferred region
+  default     = "eu-south-2"
 }
 
 variable "main_api_bucket_name" {

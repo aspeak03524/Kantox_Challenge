@@ -4,11 +4,11 @@ provider "aws" {
 
 # S3 Buckets
 resource "aws_s3_bucket" "main_api_bucket" {
-  bucket = var.main_api_bucket_name # Use variable
+  bucket = var.main_api_bucket_name 
 }
 
 resource "aws_s3_bucket" "auxiliary_bucket" {
-  bucket = var.auxiliary_bucket_name # Use variable
+  bucket = var.auxiliary_bucket_name 
 }
 
 # AWS Parameter Store Parameters

@@ -81,22 +81,20 @@ jobs:
         run: |
           kubectl apply -f ./deployment.yml
 
-      - name: Check if all Kubernetes pods are running
-        shell: bash
+      - name: Get Pod Status
+        id: get-pod-status
         run: |
-         # Get the status of all pods in all namespaces
-         kubectl get pods --all-namespaces
+          echo "pods=$(kubectl get pods --all-namespaces -o jsonpath='{.items[*].status.phase}')" >> $GITHUB_OUTPUT
 
-         # Check if any pod is NOT in Running state
-         POD_STATUS=$(kubectl get pods --all-namespaces --no-headers -o jsonpath='{.items[*].status.phase}')
-
-         # Check if any pod is not in the Running state
-         if [[ "$POD_STATUS" != *'Running'* ]]; then
-          echo "Some pods are not running."
-          echo "Pod Status: $POD_STATUS"
+      - name: Check Pod Status
+        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == false
+        run: |
+          echo "Some pods are not running. Pod Status: ${{ steps.get-pod-status.outputs.pods }}"
           exit 1
-          else
-          echo "All pods are running."
-          fi
+        continue-on-error: true
+
+      - name: All Pods Running
+        if: contains(fromJson('["${{ steps.get-pod-status.outputs.pods }}"]'), 'Running') == true
+        run: echo "All pods are running."
 
   

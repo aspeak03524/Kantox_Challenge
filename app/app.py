@@ -5,9 +5,9 @@ import boto3
 
 app = Flask(__name__)
 
-AUX_SERVICE_HOST = os.environ.get('AUX_SERVICE_HOST', 'http://127.0.0.1:4000')  # Default for local
-MAIN_BUCKET = 'main-api-bucket-andrew'  # Replace with your bucket name
-AUX_BUCKET = 'auxiliary-bucket-andrew'  # Replace with your bucket name
+AUX_SERVICE_HOST = os.environ.get('AUX_SERVICE_HOST', 'http://127.0.0.1:4000')  
+MAIN_BUCKET = 'main-api-bucket-andrew'  
+AUX_BUCKET = 'auxiliary-bucket-andrew'  
 
 s3 = boto3.client('s3')
 
@@ -34,12 +34,12 @@ def get_data():
         aux_data = aux_response.json()
 
         # Example: Read from main bucket
-        main_data = read_from_s3(MAIN_BUCKET, 'main-data.txt') # Replace with your object key
+        main_data = read_from_s3(MAIN_BUCKET, 'main-data.txt') 
         if main_data:
             print(f"Data from main bucket: {main_data}")
 
         # Example: Write to auxiliary bucket
-        write_to_s3(AUX_BUCKET, 'api-data.txt', str(aux_data)) # Replace with your object key
+        write_to_s3(AUX_BUCKET, 'api-data.txt', str(aux_data)) 
 
         data = {'message': 'Hello from the Main API!', 'aux_data': aux_data, 'main_s3_data': main_data}
         return jsonify(data)
